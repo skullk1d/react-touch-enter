@@ -1,5 +1,5 @@
 import React from 'react';
-import TouchHandler from './handlers/TouchHandler';
+import touchHandler from './handlers/TouchHandler';
 import Events from '../enums/eventEnum';
 
 import '../stylesheets/components/Tappable.scss';
@@ -9,8 +9,6 @@ class Tappable extends React.Component {
 	constructor(props) {
 		super(props);
 
-		const touchHandler = this.touchHandler = new TouchHandler(props.propagateChildren);
-
 		touchHandler.on(Events.TAP, this.onTap.bind(this));
 		touchHandler.on(Events.TAPPED, this.onTapped.bind(this));
 		touchHandler.on(Events.TOUCH_HOLD, this.onTouchHold.bind(this));
@@ -19,11 +17,16 @@ class Tappable extends React.Component {
 		touchHandler.on(Events.TOUCH_LEAVE, this.onTouchLeave.bind(this));
 
 		this.state = {
-			currentEvent: ''
+			currentEvent: '',
+			id: `tappable${new Date().getTime()}`
 		};
 	}
 
 	onTap(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TAP, () => {
 			if (this.props.onTap) {
 				return this.props.onTap(params);
@@ -32,6 +35,10 @@ class Tappable extends React.Component {
 	}
 
 	onTapped(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TAPPED, () => {
 			if (this.props.onTapped) {
 				return this.props.onTapped(params);
@@ -40,6 +47,10 @@ class Tappable extends React.Component {
 	}
 
 	onTouchHold(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TOUCH_HOLD, () => {
 			if (this.props.onTouchHold) {
 				return this.props.onTouchHold(params);
@@ -48,6 +59,10 @@ class Tappable extends React.Component {
 	}
 
 	onTouchRelease(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TOUCH_RELEASE, () => {
 			if (this.props.onTouchRelease) {
 				return this.props.onTouchRelease(params);
@@ -56,6 +71,10 @@ class Tappable extends React.Component {
 	}
 
 	onTouchEnter(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TOUCH_ENTER, () => {
 			if (this.props.onTouchEnter) {
 				return this.props.onTouchEnter(params);
@@ -64,6 +83,10 @@ class Tappable extends React.Component {
 	}
 
 	onTouchLeave(params = {}) {
+		if (params.target.id !== this.refs.domNode.id) {
+			return;
+		}
+
 		this.setCurrentEvent(Events.TOUCH_LEAVE, () => {
 			if (this.props.onTouchLeave) {
 				return this.props.onTouchLeave(params);
@@ -80,35 +103,29 @@ class Tappable extends React.Component {
 
 	componentDidMount() {
 		// register dom element with tap handler
-		this.touchHandler.registerElement(this.refs.domNode);
+		touchHandler.registerElement(this.refs.domNode, this.props.propagateChildren, !this.props.disabled);
 	}
 
 	componentWillUnmount() {
-		this.touchHandler.unregisterElement();
-	}
-
-	componentWillMount() {
-		this.touchHandler.enable(!this.props.disabled);
+		touchHandler.unregisterElement(this.refs.domNode.id);
 	}
 
 	componentWillReceiveProps(nextProps) {
-		this.touchHandler.enable(!nextProps.disabled);
+		touchHandler.enable(this.refs.domNode.id, !nextProps.disabled);
 	}
 
 	render() {
-		const touchHandler = this.touchHandler;
 		const className = `${this.props.className || ''} ${this.props.disabled ? 'disabled' : ''}`;
 
 		return (
 			<div
+				id={this.state.id}
 				className={`Tappable ${className} ${this.state.currentEvent}`}
 				ref="domNode"
 				style={this.props.style}
 				onTouchStart={touchHandler.onTouchStart.bind(touchHandler)}
 				onTouchEnd={touchHandler.onTouchEnd.bind(touchHandler)}
 				onTouchMove={touchHandler.onTouchMove.bind(touchHandler)}
-				onMouseDown={touchHandler.onTouchStart.bind(touchHandler)}
-				onMouseUp={touchHandler.onTouchEnd.bind(touchHandler)}
 			>
 				{this.props.children}
 			</div>

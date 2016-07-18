@@ -6,16 +6,16 @@ const TOUCH_HOLD_THRESHOLD = 250; // Determines how long the user must hold the 
 const BENCH_SCROLL_Y = 1; // how far we scrolled before no longer a "tap"
 
 class TouchHandler extends EventEmitter {
-	constructor(propagateChildren) {
+	constructor() {
 		super();
 
 		this.t0 = 0;
-		this.timer = null;
 		this.scrollY0 = TouchHandler.getScroll();
-		this.registeredElement = null;
-		this.currentEvent = ''; // nothing means no longer interacting with element
-		this.propagateChildren = propagateChildren; // include space of children
-		this.disabled = false; // prevent any events from firing
+		this.registeredElements = {};
+
+		document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: true });
+		document.addEventListener('touchstart', this.setScroll.bind(this), { passive: true });
+		document.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: true });
 	}
 
 	static getTouchPosition(e) {
@@ -65,174 +65,188 @@ class TouchHandler extends EventEmitter {
 		return document.scrollTop;
 	}
 
+	static getEvent(e) {
+		// detect and return native dom event
+		// note: react synthetic event refs may no longer be available come time to use them
+		if (e.persist) {
+			e.persist();
+		}
+
+		return e.nativeEvent || e;
+	}
+
 	isScrolling() {
 		// track y scroll from starting point
 		return Math.abs(TouchHandler.getScroll() - this.scrollY0) >= BENCH_SCROLL_Y;
 	}
 
-	getEvent(e) {
-		// detect and return native dom event
-		// note: react synthetic event refs may no longer be available come time to use them
-		const event = e.nativeEvent ? Object.assign({}, e.nativeEvent) : e;
-
-		return {
-			...event,
-			currentTarget: this.registeredElement // touch should target this element
-		};
-	}
-
 	onTouchStart(e) {
-		if (this.disabled) {
+		const registeredElement = this.registeredElements[e.currentTarget.id];
+
+		// touched element registered?
+		if (!registeredElement || !registeredElement.enabled) {
 			return;
 		}
 
 		// reset base values, emit initial tap
-		this.t0 = new Date().getTime();
-		this.currentEvent = Events.TAP;
+		registeredElement.t0 = new Date().getTime();
+		registeredElement.currentEvent = Events.TAP;
 
-		const event = this.getEvent(e);
+		const event = TouchHandler.getEvent(e);
 		const touchPosition = TouchHandler.getTouchPosition(e);
 
-		this.emit(this.currentEvent, {
+		this.emit(registeredElement.currentEvent, {
 			event: event,
-			touchPosition: touchPosition
+			touchPosition: touchPosition,
+			target: registeredElement.node
 		});
 
-		this.checkTapHold(event, touchPosition);
+		this.checkTapHold(registeredElement, event, touchPosition);
 	}
 
 	onTouchEnd(e) {
-		if (this.disabled) {
-			return;
+		// process each element at point
+		for (const id in this.registeredElements) {
+			if (!this.registeredElements.hasOwnProperty(id)) {
+				continue;
+			}
+
+			const elem = this.registeredElements[id];
+
+			// touched element registered?
+			// already finished interaction? (reset by tap released or touch leave)
+			if (!elem.enabled || !elem.currentEvent) {
+				continue;
+			}
+
+			// CANCEL TOUCH if
+			// releasing finger on tapping quickly after scroll
+			// there was a scroll
+			const dT = new Date().getTime() - elem.t0;
+
+			if (elem.currentEvent === Events.TAP && dT < TOUCH_END_THRESHOLD) {
+				this.reset(elem.id);
+				continue;
+			}
+
+			// TOUCHLEAVE if there was a scroll or left element
+			// check scroll again, in case of scrollTo
+			const touchPosition = TouchHandler.getTouchPosition(e);
+			const touchEntered = TouchHandler.elementContainsPoint(elem.node, touchPosition, elem.propagateChildren);
+
+			if (this.isScrolling() || !touchEntered) {
+				this.onTouchLeave(e, elem);
+				continue;
+			}
+
+			// emit either a 'released' if long touching/touch entered, or 'tapped' if short touching
+			const nextEvent = {
+				[Events.TOUCH_ENTER]: Events.TOUCH_RELEASE,
+				[Events.TOUCH_HOLD]: Events.TOUCH_RELEASE,
+				[Events.TAP]: Events.TAPPED
+			};
+
+			elem.currentEvent = nextEvent[elem.currentEvent];
+
+			const event = TouchHandler.getEvent(e);
+
+			this.emit(elem.currentEvent, {
+				event: event,
+				touchPosition: touchPosition,
+				target: elem.node
+			});
+
+			this.reset(elem.id);
 		}
-
-		// already finished interaction (reset by tap released or touch leave)
-		if (!this.currentEvent) {
-			return;
-		}
-
-		// CANCEL TOUCH if
-		// releasing finger on tapping quickly after scroll
-		// there was a scroll
-		const dT = new Date().getTime() - this.t0;
-
-		if (this.currentEvent === Events.TAP && dT < TOUCH_END_THRESHOLD) {
-			return this.reset();
-		}
-
-		// TOUCHLEAVE if there was a scroll or left element
-		// check scroll again, in case of scrollTo
-		const touchPosition = TouchHandler.getTouchPosition(e);
-		const touchEntered = TouchHandler.elementContainsPoint(this.registeredElement, touchPosition, this.propagateChildren);
-
-		if (this.isScrolling() || !touchEntered) {
-			return this.onTouchLeave(e);
-		}
-
-		// emit either a 'released' if long touching/touch entered, or 'tapped' if short touching
-		const nextEvent = {
-			[Events.TOUCH_ENTER]: Events.TOUCH_RELEASE,
-			[Events.TOUCH_HOLD]: Events.TOUCH_RELEASE,
-			[Events.TAP]: Events.TAPPED
-		};
-
-		this.currentEvent = nextEvent[this.currentEvent];
-
-		const event = this.getEvent(e);
-
-		this.emit(this.currentEvent, {
-			event: event,
-			touchPosition: touchPosition
-		});
-
-		this.reset();
 	}
 
-	onTouchEnter(e) {
-		if (this.disabled) {
-			return;
-		}
-
-		this.currentEvent = Events.TOUCH_ENTER;
+	onTouchEnter(e, elem) {
+		elem.currentEvent = Events.TOUCH_ENTER;
 
 		// pass along event but override target
-		const event = this.getEvent(e);
+		const event = TouchHandler.getEvent(e);
 		const touchPosition = TouchHandler.getTouchPosition(e);
 
-		this.emit(this.currentEvent, {
+		this.emit(elem.currentEvent, {
 			event: event,
-			touchPosition: touchPosition
+			touchPosition: touchPosition,
+			target: elem.node
 		});
 
-		this.checkTapHold(event, touchPosition);
+		this.checkTapHold(elem, event, touchPosition);
 	}
 
-	onTouchLeave(e) {
-		if (this.disabled) {
-			return;
-		}
-
-		this.currentEvent = Events.TOUCH_LEAVE;
+	onTouchLeave(e, elem) {
+		elem.currentEvent = Events.TOUCH_LEAVE;
 
 		// pass along event but override target
-		const event = this.getEvent(e);
+		const event = TouchHandler.getEvent(e);
 		const touchPosition = TouchHandler.getTouchPosition(e);
 
-		this.emit(this.currentEvent, {
+		this.emit(elem.currentEvent, {
 			event: event,
-			touchPosition: touchPosition
+			touchPosition: touchPosition,
+			target: elem.node
 		});
 
-		this.reset();
+		this.reset(elem.id);
 	}
 
 	onTouchMove(e) {
-		if (this.disabled) {
-			// no preventDefault -> chrome throws an error not allowing this on "passive" events
-			return;
-		}
-
-		// if began touch inside this element, no need to check for a touchEnter or touchLeave
-		if (this.currentEvent === Events.TAP) {
-			return;
-		}
-
-		// if scrolling, release touch while interacting or prevent touch if not interacting
-		if (this.isScrolling()) {
-			if (this.currentEvent) {
-				return this.onTouchLeave(e);
+		// process each element at point
+		for (const id in this.registeredElements) {
+			if (!this.registeredElements.hasOwnProperty(id)) {
+				continue;
 			}
 
-			return;
-		}
+			const elem = this.registeredElements[id];
 
-		// check if React proxy event, otherwise directly pass native dom event
-		const touchPosition = TouchHandler.getTouchPosition(e);
-		const touchEntered = TouchHandler.elementContainsPoint(this.registeredElement, touchPosition, this.propagateChildren);
+			// touched element registered?
+			// if began touch inside this element, no need to check for a touchEnter or touchLeave
+			if (!elem.enabled ||
+				elem.currentEvent === Events.TAP ||
+				(this.isScrolling() && !elem.currentEvent)
+			) {
+				continue;
+			}
 
-		// emit a TOUCH_LEAVE if we've moved outside of the registered element, even if we've begun interacting
-		if (this.currentEvent && !touchEntered) {
-			return this.onTouchLeave(e);
-		}
+			// if scrolling, release touch while interacting or prevent touch if not interacting
+			if (this.isScrolling() && elem.currentEvent) {
+				this.onTouchLeave(e, elem);
+				continue;
+			}
 
-		// emit a TOUCH_ENTER if document touchmove entered into the registered element
-		if (!this.currentEvent && touchEntered) {
-			return this.onTouchEnter(e);
+			// check if React proxy event, otherwise directly pass native dom event
+			const touchPosition = TouchHandler.getTouchPosition(e);
+			const touchEntered = TouchHandler.elementContainsPoint(elem.node, touchPosition, elem.propagateChildren);
+
+			// emit a TOUCH_LEAVE if we've moved outside of the registered element, even if we've begun interacting
+			if (elem.currentEvent && !touchEntered) {
+				this.onTouchLeave(e, elem);
+				continue;
+			}
+
+			// emit a TOUCH_ENTER if document touchmove entered into the registered element
+			if (!elem.currentEvent && touchEntered) {
+				this.onTouchEnter(e, elem);
+				continue;
+			}
 		}
 	}
 
-	checkTapHold(event, touchPosition) {
+	checkTapHold(registeredElement, event, touchPosition) {
 		// begin check for long tap
-		clearTimeout(this.timer);
-		this.timer = setTimeout(() => {
+		clearTimeout(registeredElement.timer);
+		registeredElement.timer = setTimeout(() => {
 			if (this.isScrolling()) {
 				return;
 			}
 
-			this.currentEvent = Events.TOUCH_HOLD; // The user has held the touch long enough
-			this.emit(this.currentEvent, {
+			registeredElement.currentEvent = Events.TOUCH_HOLD; // The user has held the touch long enough
+			this.emit(registeredElement.currentEvent, {
 				event: event,
-				touchPosition: touchPosition
+				touchPosition: touchPosition,
+				target: registeredElement.node
 			});
 		}, TOUCH_HOLD_THRESHOLD);
 	}
@@ -242,33 +256,37 @@ class TouchHandler extends EventEmitter {
 		this.scrollY0 = TouchHandler.getScroll();
 	}
 
-	registerElement(element) {
+	registerElement(element, propagateChildren, shouldEnable = true) {
 		// expects a DOM node
-		this.registeredElement = element;
-
-		document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: true });
-		document.addEventListener('touchstart', this.setScroll.bind(this), { passive: true });
-		document.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: true });
+		this.registeredElements[element.id] = {
+			id: element.id, // html node unique id
+			node: element, // html node
+			timer: null, // event timer,
+			t0: 0, // timer start
+			propagateChildren: propagateChildren, // include child rects
+			currentEvent: '', // event enum
+			enabled: shouldEnable // emit events?
+		};
 	}
 
-	unregisterElement() {
-		this.reset();
-
-		document.removeEventListener('touchmove', this.onTouchMove.bind(this));
-		document.removeEventListener('touchstart', this.setScroll.bind(this));
-		document.removeEventListener('touchend', this.onTouchEnd.bind(this));
+	unregisterElement(id) {
+		delete this.registeredElements[id];
 	}
 
-	reset() {
+	reset(id) {
 		// only reset after interactions have ended (TOUCH_LEAVE, TOUCH_END)
-		this.currentEvent = '';
+		const registeredElement = this.registeredElements[id];
 
-		clearTimeout(this.timer);
+		// reset event status, clear event timer
+		registeredElement.currentEvent = '';
+		clearTimeout(registeredElement.timer);
 	}
 
-	enable(shouldEnable = true) {
-		this.disabled = !shouldEnable;
+	enable(id, shouldEnable = true) {
+		const registeredElement = this.registeredElements[id];
+
+		registeredElement.enabled = shouldEnable;
 	}
 }
 
-export default TouchHandler;
+export default new TouchHandler();
