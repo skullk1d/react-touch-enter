@@ -1,0 +1,37 @@
+@import "bourbon";
+
+$colorDefault: #D46A6A;
+$colorEnter: #AA3939;
+$colorHold: #407F7F;
+
+.DemoBox {
+	display: inline-block;
+	margin: 24px;
+	border-radius: 25%;
+	width: 200px;
+	height: 200px;
+	background-color: $colorDefault;
+
+	@include transition(backgorund-color 0.1s ease);
+
+	&.tap {
+		background-color: $colorEnter;
+	}
+
+	&.touchEnter {
+		background-color: $colorEnter;
+	}
+
+	&.touchHold {
+		background-color: $colorHold;
+	}
+
+	.label {
+		width: 100%;
+		text-align: center;
+		font-size: 24px;
+		font-weight: lighter;
+		font-family: Arial;
+		margin-top: 85px;
+	}
+}
