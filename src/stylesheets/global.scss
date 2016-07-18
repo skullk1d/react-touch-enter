@@ -1,0 +1,22 @@
+@import "bourbon";
+
+@import "demo";
+
+* {
+	box-sizing: border-box;
+	position: relative;
+	-webkit-tap-highlight-color: rgba(0,0,0,0);
+}
+
+html, body {
+	height: 100%;
+}
+
+ul, ol {
+	list-style-type: none;
+}
+
+#content {
+	height: 100%;
+	overflow-x: hidden;
+}

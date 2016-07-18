@@ -1,0 +1,25 @@
+$colorDefault: #D46A6A;
+$colorEnter: #AA3939;
+$colorHold: #407F7F;
+
+.demoContainer {
+	width: 100%;
+	text-align: center;
+}
+
+.demoTap {
+	display: inline-block;
+	margin: 24px;
+	border-radius: 25%;
+	width: 200px;
+	height: 200px;
+	background-color: $colorDefault;
+
+	&.touchEnter {
+		background-color: $colorEnter;
+	}
+
+	&.touchHold {
+		background-color: $colorHold;
+	}
+}
