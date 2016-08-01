@@ -9,17 +9,35 @@ class Tappable extends React.Component {
 	constructor(props) {
 		super(props);
 
-		touchHandler.on(Events.TAP, this.onTap.bind(this));
-		touchHandler.on(Events.TAPPED, this.onTapped.bind(this));
-		touchHandler.on(Events.TOUCH_HOLD, this.onTouchHold.bind(this));
-		touchHandler.on(Events.TOUCH_RELEASE, this.onTouchRelease.bind(this));
-		touchHandler.on(Events.TOUCH_ENTER, this.onTouchEnter.bind(this));
-		touchHandler.on(Events.TOUCH_LEAVE, this.onTouchLeave.bind(this));
+		this.onTapHandler = this.onTap.bind(this);
+		this.onTappedHandler = this.onTapped.bind(this);
+		this.onTouchHoldHandler = this.onTouchHold.bind(this);
+		this.onTouchReleaseHandler = this.onTouchRelease.bind(this);
+		this.onTouchEnterHandler = this.onTouchEnter.bind(this);
+		this.onTouchLeaveHandler = this.onTouchLeave.bind(this);
 
 		this.state = {
 			currentEvent: '',
 			id: `tappable${new Date().getTime()}`
 		};
+	}
+
+	addEvents() {
+		touchHandler.on(Events.TAP, this.onTapHandler);
+		touchHandler.on(Events.TAPPED, this.onTappedHandler);
+		touchHandler.on(Events.TOUCH_HOLD, this.onTouchHoldHandler);
+		touchHandler.on(Events.TOUCH_RELEASE, this.onTouchReleaseHandler);
+		touchHandler.on(Events.TOUCH_ENTER, this.onTouchEnterHandler);
+		touchHandler.on(Events.TOUCH_LEAVE, this.onTouchLeaveHandler);
+	}
+
+	removeEvents() {
+		touchHandler.removeListener(Events.TAP, this.onTapHandler);
+		touchHandler.removeListener(Events.TAPPED, this.onTappedHandler);
+		touchHandler.removeListener(Events.TOUCH_HOLD, this.onTouchHoldHandler);
+		touchHandler.removeListener(Events.TOUCH_RELEASE, this.onTouchReleaseHandler);
+		touchHandler.removeListener(Events.TOUCH_ENTER, this.onTouchEnterHandler);
+		touchHandler.removeListener(Events.TOUCH_LEAVE, this.onTouchLeaveHandler);
 	}
 
 	onTap(params = {}) {
@@ -103,15 +121,29 @@ class Tappable extends React.Component {
 
 	componentDidMount() {
 		// register dom element with tap handler
-		touchHandler.registerElement(this.refs.domNode, this.props.propagateChildren, !this.props.disabled);
+		touchHandler.registerElement({
+			element: this.refs.domNode,
+			container: this.props.container,
+			propagateChildren: this.props.propagateChildren
+		},
+		!this.props.disabled);
+
+		this.addEvents();
 	}
 
 	componentWillUnmount() {
+		this.removeEvents();
 		touchHandler.unregisterElement(this.refs.domNode.id);
 	}
 
 	componentWillReceiveProps(nextProps) {
-		touchHandler.enable(this.refs.domNode.id, !nextProps.disabled);
+		if (nextProps.hasOwnProperty('disabled')) {
+			touchHandler.enable(this.refs.domNode.id, !nextProps.disabled);
+		}
+
+		if (nextProps.hasOwnProperty('container')) {
+			touchHandler.registerContainer(this.state.id, nextProps.container);
+		}
 	}
 
 	render() {
@@ -125,7 +157,6 @@ class Tappable extends React.Component {
 				style={this.props.style}
 				onTouchStart={touchHandler.onTouchStart.bind(touchHandler)}
 				onTouchEnd={touchHandler.onTouchEnd.bind(touchHandler)}
-				onTouchMove={touchHandler.onTouchMove.bind(touchHandler)}
 			>
 				{this.props.children}
 			</div>
@@ -143,6 +174,7 @@ Tappable.propTypes = {
 	className: React.PropTypes.string,
 	style: React.PropTypes.object,
 	propagateChildren: React.PropTypes.bool,
+	container: React.PropTypes.object,
 	disabled: React.PropTypes.bool,
 	children: React.PropTypes.node
 };

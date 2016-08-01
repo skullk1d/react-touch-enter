@@ -10,11 +10,10 @@ class TouchHandler extends EventEmitter {
 		super();
 
 		this.t0 = 0;
-		this.scrollY0 = TouchHandler.getScroll();
 		this.registeredElements = {};
 
 		document.addEventListener('touchmove', this.onTouchMove.bind(this), { passive: true });
-		document.addEventListener('touchstart', this.setScroll.bind(this), { passive: true });
+		document.addEventListener('touchstart', this.setScrolls.bind(this), { passive: true });
 		document.addEventListener('touchend', this.onTouchEnd.bind(this), { passive: true });
 	}
 
@@ -60,11 +59,6 @@ class TouchHandler extends EventEmitter {
 		return containsX && containsY;
 	}
 
-	static getScroll() {
-		// scroll y value of main react content wrapper
-		return document.scrollTop;
-	}
-
 	static getEvent(e) {
 		// detect and return native dom event
 		// note: react synthetic event refs may no longer be available come time to use them
@@ -75,9 +69,14 @@ class TouchHandler extends EventEmitter {
 		return e.nativeEvent || e;
 	}
 
-	isScrolling() {
+	getScroll(id) {
+		// scroll y value of an elements overflowing parent
+		return this.registeredElements[id].containerNode.scrollTop;
+	}
+
+	isScrolling(id) {
 		// track y scroll from starting point
-		return Math.abs(TouchHandler.getScroll() - this.scrollY0) >= BENCH_SCROLL_Y;
+		return Math.abs(this.getScroll(id) - this.registeredElements[id].scrollY0) >= BENCH_SCROLL_Y;
 	}
 
 	onTouchStart(e) {
@@ -134,7 +133,7 @@ class TouchHandler extends EventEmitter {
 			const touchPosition = TouchHandler.getTouchPosition(e);
 			const touchEntered = TouchHandler.elementContainsPoint(elem.node, touchPosition, elem.propagateChildren);
 
-			if (this.isScrolling() || !touchEntered) {
+			if (this.isScrolling(id) || !touchEntered) {
 				this.onTouchLeave(e, elem);
 				continue;
 			}
@@ -205,13 +204,13 @@ class TouchHandler extends EventEmitter {
 			// if began touch inside this element, no need to check for a touchEnter or touchLeave
 			if (!elem.enabled ||
 				elem.currentEvent === Events.TAP ||
-				(this.isScrolling() && !elem.currentEvent)
+				(this.isScrolling(id) && !elem.currentEvent)
 			) {
 				continue;
 			}
 
 			// if scrolling, release touch while interacting or prevent touch if not interacting
-			if (this.isScrolling() && elem.currentEvent) {
+			if (this.isScrolling(id) && elem.currentEvent) {
 				this.onTouchLeave(e, elem);
 				continue;
 			}
@@ -238,7 +237,7 @@ class TouchHandler extends EventEmitter {
 		// begin check for long tap
 		clearTimeout(registeredElement.timer);
 		registeredElement.timer = setTimeout(() => {
-			if (this.isScrolling()) {
+			if (this.isScrolling(registeredElement.id)) {
 				return;
 			}
 
@@ -251,16 +250,30 @@ class TouchHandler extends EventEmitter {
 		}, TOUCH_HOLD_THRESHOLD);
 	}
 
-	setScroll() {
-		// begin tracking for scroll threshold
-		this.scrollY0 = TouchHandler.getScroll();
+	setScrolls() {
+		for (const id in this.registeredElements) {
+			if (!this.registeredElements.hasOwnProperty(id)) {
+				continue;
+			}
+
+			const elem = this.registeredElements[id];
+
+			// begin tracking for scroll threshold
+			elem.scrollY0 = this.getScroll(id);
+		}
 	}
 
-	registerElement(element, propagateChildren, shouldEnable = true) {
+	registerElement(params, shouldEnable = true) {
 		// expects a DOM node
+		const element = params.element;
+		const propagateChildren = params.propagateChildren;
+		const container = params.container || window.document.documentElement;
+
 		this.registeredElements[element.id] = {
 			id: element.id, // html node unique id
 			node: element, // html node
+			containerNode: container, // overflowing parent (optional)
+			scrollY0: container.scrollTop, // initial overflow Y
 			timer: null, // event timer,
 			t0: 0, // timer start
 			propagateChildren: propagateChildren, // include child rects
@@ -271,6 +284,10 @@ class TouchHandler extends EventEmitter {
 
 	unregisterElement(id) {
 		delete this.registeredElements[id];
+	}
+
+	registerContainer(id, containerElement = window.document.documentElement) {
+		this.registeredElements[id].containerNode = containerElement;
 	}
 
 	reset(id) {

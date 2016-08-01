@@ -52,11 +52,16 @@ class DemoBox extends React.Component {
 				onTouchRelease={this.onTouchRelease.bind(this)}
 				onTouchEnter={this.onTouchEnter.bind(this)}
 				onTouchLeave={this.onTouchLeave.bind(this)}
+				container={this.props.container}
 			>
 				<div className="label">{this.state.message}</div>
 			</Tappable>
 		);
 	}
 }
+
+DemoBox.propTypes = {
+	container: React.PropTypes.object
+};
 
 export default DemoBox;
