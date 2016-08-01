@@ -41,7 +41,7 @@ class Tappable extends React.Component {
 	}
 
 	onTap(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -53,7 +53,7 @@ class Tappable extends React.Component {
 	}
 
 	onTapped(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -65,7 +65,7 @@ class Tappable extends React.Component {
 	}
 
 	onTouchHold(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -77,7 +77,7 @@ class Tappable extends React.Component {
 	}
 
 	onTouchRelease(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -89,7 +89,7 @@ class Tappable extends React.Component {
 	}
 
 	onTouchEnter(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -101,7 +101,7 @@ class Tappable extends React.Component {
 	}
 
 	onTouchLeave(params = {}) {
-		if (params.target.id !== this.refs.domNode.id) {
+		if (params.target.id !== this.state.id) {
 			return;
 		}
 
@@ -133,12 +133,12 @@ class Tappable extends React.Component {
 
 	componentWillUnmount() {
 		this.removeEvents();
-		touchHandler.unregisterElement(this.refs.domNode.id);
+		touchHandler.unregisterElement(this.state.id);
 	}
 
 	componentWillReceiveProps(nextProps) {
 		if (nextProps.hasOwnProperty('disabled')) {
-			touchHandler.enable(this.refs.domNode.id, !nextProps.disabled);
+			touchHandler.enable(this.state.id, !nextProps.disabled);
 		}
 
 		if (nextProps.hasOwnProperty('container')) {
