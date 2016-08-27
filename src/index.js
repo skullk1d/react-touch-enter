@@ -11,6 +11,8 @@ render(
 	<div className="demoContainer">
 		<DemoBox />
 		<DemoBox />
+		<DemoBox />
+		<DemoBox className="overlap"/>
 	</div>,
 	document.getElementById('content')
 );

@@ -46,7 +46,7 @@ class DemoBox extends React.Component {
 	render() {
 		return (
 			<Tappable
-				className={'DemoBox'}
+				className={`DemoBox ${this.props.className ? this.props.className : ''}`}
 				onTapped={this.onTapped.bind(this)}
 				onTouchHold={this.onTouchHold.bind(this)}
 				onTouchRelease={this.onTouchRelease.bind(this)}
@@ -61,7 +61,8 @@ class DemoBox extends React.Component {
 }
 
 DemoBox.propTypes = {
-	container: React.PropTypes.object
+	container: React.PropTypes.object,
+	className: React.PropTypes.string
 };
 
 export default DemoBox;

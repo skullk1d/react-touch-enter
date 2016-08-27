@@ -11,6 +11,7 @@ $colorHold: #407F7F;
 	width: 200px;
 	height: 200px;
 	background-color: $colorDefault;
+	box-shadow: 1px 1px 8px 0px rgba(0,0,0,0.75);
 
 	@include transition(backgorund-color 0.1s ease);
 
@@ -33,5 +34,9 @@ $colorHold: #407F7F;
 		font-weight: lighter;
 		font-family: Arial;
 		margin-top: 85px;
+	}
+
+	&.overlap {
+		margin-left: -80px;
 	}
 }

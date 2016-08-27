@@ -69,6 +69,31 @@ class TouchHandler extends EventEmitter {
 		return e.nativeEvent || e;
 	}
 
+	static isChild(parent, child) {
+		let node = child.parentNode;
+
+		while (node !== null) {
+			if (node === parent) {
+				return true;
+			}
+			node = node.parentNode;
+		}
+
+		return false;
+	}
+
+	static isOnTop(elementNode, point) {
+		// touched elment is top node or child of top node
+		const touchedNode = document.elementFromPoint(point.x, point.y);
+
+		return touchedNode === elementNode || TouchHandler.isChild(elementNode, touchedNode);
+	}
+
+	static isTouchEntered(element, point) {
+		return TouchHandler.elementContainsPoint(element.node, point, element.propagateChildren) &&
+			TouchHandler.isOnTop(element.node, point);
+	}
+
 	getScroll(id) {
 		// scroll y value of an elements overflowing parent
 		return this.registeredElements[id].containerNode.scrollTop;
@@ -131,7 +156,7 @@ class TouchHandler extends EventEmitter {
 			// TOUCHLEAVE if there was a scroll or left element
 			// check scroll again, in case of scrollTo
 			const touchPosition = TouchHandler.getTouchPosition(e);
-			const touchEntered = TouchHandler.elementContainsPoint(elem.node, touchPosition, elem.propagateChildren);
+			const touchEntered = TouchHandler.isTouchEntered(elem, touchPosition);
 
 			if (this.isScrolling(id) || !touchEntered) {
 				this.onTouchLeave(e, elem);
@@ -160,11 +185,11 @@ class TouchHandler extends EventEmitter {
 	}
 
 	onTouchEnter(e, elem) {
-		elem.currentEvent = Events.TOUCH_ENTER;
-
 		// pass along event but override target
 		const event = TouchHandler.getEvent(e);
 		const touchPosition = TouchHandler.getTouchPosition(e);
+
+		elem.currentEvent = Events.TOUCH_ENTER;
 
 		this.emit(elem.currentEvent, {
 			event: event,
@@ -176,11 +201,11 @@ class TouchHandler extends EventEmitter {
 	}
 
 	onTouchLeave(e, elem) {
-		elem.currentEvent = Events.TOUCH_LEAVE;
-
 		// pass along event but override target
 		const event = TouchHandler.getEvent(e);
 		const touchPosition = TouchHandler.getTouchPosition(e);
+
+		elem.currentEvent = Events.TOUCH_LEAVE;
 
 		this.emit(elem.currentEvent, {
 			event: event,
@@ -217,7 +242,7 @@ class TouchHandler extends EventEmitter {
 
 			// check if React proxy event, otherwise directly pass native dom event
 			const touchPosition = TouchHandler.getTouchPosition(e);
-			const touchEntered = TouchHandler.elementContainsPoint(elem.node, touchPosition, elem.propagateChildren);
+			const touchEntered = TouchHandler.isTouchEntered(elem, touchPosition);
 
 			// emit a TOUCH_LEAVE if we've moved outside of the registered element, even if we've begun interacting
 			if (elem.currentEvent && !touchEntered) {
@@ -237,6 +262,7 @@ class TouchHandler extends EventEmitter {
 		// begin check for long tap
 		clearTimeout(registeredElement.timer);
 		registeredElement.timer = setTimeout(() => {
+			// no longer holding if started scrolling container or no longer on top
 			if (this.isScrolling(registeredElement.id)) {
 				return;
 			}
